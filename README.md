@@ -1,33 +1,82 @@
-Diagnosis of Breast Cancer Using Random Forest
+# Importing the required libraries
+import numpy as np
+import pandas as pd
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split, RandomizedSearchCV, cross_val_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+# Load and preprocess the data
+cancer = load_breast_cancer()
+X = cancer.data
+y = cancer.target
 
-Introduction
-This program utilizes a machine learning model to identify breast cancer by analyzing different characteristics derived from medical images. Here’s a brief summary of the essential elements and processes.
+# print the names of the features
+print("Features: ", cancer.feature_names)
+# print the label type of cancer('malignant' 'benign')
+print("Labels: ", cancer.target_names)
+# K-fold cross validation
+def evaluate_model(model, X, y):
+    scores = cross_val_score(model, X, y, cv=5, scoring='accuracy')
+    return scores.mean(), scores.std()
+# Defining the parameter grid for RandomizedSearchCV
+param_dist = {
+    'n_estimators': [100, 200, 300, 400, 500],
+    'max_depth': [None, 10, 20, 30, 40, 50],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4],
+    'max_features': ['sqrt', 'log2', 0.3, 0.5, 0.7, None]
+}
 
-Data Preparation and Preprocessing
-The breast cancer dataset from UCI machine learning repository is utilized by the program, featuring 30 attributes obtained from digitized images of breast masses. The dataset is divided into training (70%) and testing (30%) sets, and features are normalized with StandardScaler for optimal model efficiency.
+# Create a Random Forest classifier
+rf = RandomForestClassifier(random_state=42)
 
-Creation of Model
-A Random Forest Classifier is utilized because it can manage intricate relationships in high-dimensional datasets. It uses k-fold cross validation to help the model generalize better. The hyperparameters of the model are fine-tuned using RandomizedSearchCV, which investigates different combinations of parameters like the number of estimators, maximum depth, and minimum samples required for splitting.
+# Set up RandomizedSearchCV
+random_search = RandomizedSearchCV(
+    rf, param_distributions=param_dist, n_iter=20, cv=5, random_state=42, n_jobs=-1, error_score='raise'
+)
 
-Assessment of the Model
-The enhanced model is assessed through various metrics:
-Accuracy: 0.9591
-Precision: 0.9633
-Recall: 0.9722
-F1-score: 0.9677
-Confusion Matrix
-A confusion matrix is created and displayed with a heatmap, offering a clear depiction of the model's true positive, true negative, false positive, and false negative outcomes.
+# Fit RandomizedSearchCV
+random_search.fit(X_train_scaled, y_train)
 
-Significance of Features
-The program prioritizes features according to their significance in the classification process. The five features deemed most important are:
-Mean concave points (0.261948)
-Worst concave points (0.217354)
-Worst perimeter (0.128101)
-Worst area (0.117121)
-Worst radius (0.095482)
+# Get the best model
+best_model = random_search.best_estimator_
 
+print("Best parameters:", random_search.best_params_)
+# Evaluation of the model on test dataset
+y_pred = best_model.predict(X_test_scaled)
 
-This ranking aids in determining which features of the breast mass are essential for precise diagnosis.
+# Calculating performance metrics
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred)
 
-Conclusion
-The Random Forest model shows high accuracy in diagnosing breast cancer, possibly being a useful resource for healthcare providers. The analysis of feature importance offers understanding of the key elements for classification, potentially directing future research and advancements in breast cancer detection methods.
+# Print the results
+print(f"Accuracy: {accuracy:.4f}")
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1-score: {f1:.4f}")
+# Creating a confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+
+# Plot the confusion matrix
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Greens')
+plt.title('Confusion Matrix')
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.show()
+# Feature importance
+importances = best_model.feature_importances_
+feature_names = cancer.feature_names
+
+# Sort feature importances in descending order
+indices = np.argsort(importances)[::-1]
+
+# Print the feature ranking
+print("Feature ranking:")
+for f in range(X.shape[1]):
+    print("%d. %s (%f)" % (f + 1, feature_names[indices[f]], importances[indices[f]]))
